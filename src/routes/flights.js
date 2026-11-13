@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import db from "../db.js";
 import { HttpError } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -65,5 +66,33 @@ router.get("/", (req, res) => {
 router.get("/:id", (req, res) => {
     res.json(loadFlight(req));
 })
+
+const upload = multer({
+    dest: "uploads/",
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
+    fileFilter: (req, file, cb) => {
+        if (!file.originalname.toLowerCase().endsWith(".csv"))
+            return cb(new HttpError(400, "Only .csv files are allowed"));
+        cb(null, true);
+    },
+});
+
+router.post(
+    "/:id/files",
+    (req, res, next) => {
+        const flight = loadFlight(req); // 404/403 before we accept any bytes
+        if (flight.status === "processing") throw new HttpError(409, "Flight is already processing");
+        next();
+    },
+    upload.single("file"),
+    (req, res) => {
+        if (!req.file) throw new HttpError(400, "file field is required");
+        const flightId = Number(req.params.id);
+        db.prepare("UPDATE flights SET status = 'uploaded' WHERE id = ?").run(flightId);
+        setImmediate(() => processFlight(flightId, req.file.path));
+        res.status(202).json({ id: flightId, status: "uploaded" });
+    }
+);
+
 
 export default router;
