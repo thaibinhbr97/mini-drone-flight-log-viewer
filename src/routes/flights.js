@@ -94,5 +94,31 @@ router.post(
     }
 );
 
+router.get("/:id/telemetry", (req, res) => {
+  const flight = loadFlight(req);
+  if (flight.status !== "ready") throw new HttpError(409, `Flight is ${flight.status}`);
+
+  const from = req.query.from !== undefined ? Number(req.query.from) : 0;
+  const to = req.query.to !== undefined ? Number(req.query.to) : Number.MAX_SAFE_INTEGER;
+  const maxPoints = Math.min(Math.max(parseInt(req.query.max_points) || 500, 1), 5000);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from > to)
+    throw new HttpError(400, "Invalid from/to (epoch ms, from <= to)");
+
+  const { n } = db
+    .prepare("SELECT COUNT(*) AS n FROM telemetry WHERE flight_id = ? AND ts BETWEEN ? AND ?")
+    .get(flight.id, from, to);
+  const step = Math.max(1, Math.ceil(n / maxPoints));
+
+  const rows = db
+    .prepare(
+      `SELECT ts, lat, lon, alt, battery, speed FROM (
+         SELECT *, ROW_NUMBER() OVER (ORDER BY ts) AS rn
+         FROM telemetry WHERE flight_id = ? AND ts BETWEEN ? AND ?
+       ) WHERE (rn - 1) % ? = 0`
+    )
+    .all(flight.id, from, to, step);
+
+  res.json({ flight_id: flight.id, total_points: n, returned: rows.length, step, data: rows });
+});
 
 export default router;
