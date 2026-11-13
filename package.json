@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +21,6 @@
     "multer": "^2.5.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
-  },
-  "dev": "nodemon src/index.js"
+    "nodemon": "^3.1.11"
+  }
 }
